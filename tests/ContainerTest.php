@@ -542,7 +542,7 @@ class ContainerTest extends TestCase
         $this->assertEquals('{"name":"Alice"}', (string) $response->getBody());
     }
 
-    /** @return list<list<\stdClass|string|null>> */
+    /** @return list<array{\stdClass|string|array<mixed>|null,string}> */
     public function provideMixedValue(): array
     {
         return [
@@ -555,6 +555,18 @@ class ContainerTest extends TestCase
                 '"Alice"'
             ],
             [
+                [],
+                '[]'
+            ],
+            [
+                ['a', 'b'],
+                '["a","b"]'
+            ],
+            [
+                ['name' => 'Alice'],
+                '{"name":"Alice"}'
+            ],
+            [
                 null,
                 'null'
             ]
@@ -563,7 +575,7 @@ class ContainerTest extends TestCase
 
     /**
      * @dataProvider provideMixedValue
-     * @param \stdClass|string|null $value
+     * @param \stdClass|string|array<mixed>|null $value
      */
     public function testCallableReturnsCallableForClassNameWithDependencyMappedWithFactoryThatRequiresUntypedContainerVariable($value, string $json): void
     {
@@ -602,7 +614,7 @@ class ContainerTest extends TestCase
 
     /**
      * @dataProvider provideMixedValue
-     * @param \stdClass|string|null $value
+     * @param \stdClass|string|array<mixed>|null $value
      */
     public function testCallableReturnsCallableForClassNameWithDependencyMappedWithFactoryThatRequiresUntypedContainerVariableWithFactory($value, string $json): void
     {
@@ -644,7 +656,7 @@ class ContainerTest extends TestCase
     /**
      * @requires PHP 8
      * @dataProvider provideMixedValue
-     * @param \stdClass|string|null $value
+     * @param \stdClass|string|array<mixed>|null $value
      */
     public function testCallableReturnsCallableForClassNameWithDependencyMappedWithFactoryThatRequiresMixedContainerVariable($value, string $json): void
     {
@@ -1360,7 +1372,7 @@ class ContainerTest extends TestCase
         $callable = $container->callable(get_class($controller));
 
         $this->expectException(\Error::class);
-        $this->expectExceptionMessage('Return value of {closure:' . __FILE__ . ':' . $line . '}() for $http must be of type object|string|int|float|bool|null, resource returned');
+        $this->expectExceptionMessage('Return value of {closure:' . __FILE__ . ':' . $line . '}() for $http must be of type object|string|int|float|bool|array|null, resource returned');
         $callable($request);
     }
 
@@ -1648,20 +1660,10 @@ class ContainerTest extends TestCase
         $callable($request);
     }
 
-    public function testCtorThrowsWhenConfigContainsInvalidArray(): void
-    {
-        $this->expectException(\TypeError::class);
-        $this->expectExceptionMessage('Argument #1 ($config) for key "all" must be of type object|string|int|float|bool|null|Closure, array given');
-
-        new Container([ // @phpstan-ignore-line
-            'all' => []
-        ]);
-    }
-
     public function testCtorThrowsWhenConfigContainsInvalidResource(): void
     {
         $this->expectException(\TypeError::class);
-        $this->expectExceptionMessage('Argument #1 ($config) for key "file" must be of type object|string|int|float|bool|null|Closure, resource given');
+        $this->expectExceptionMessage('Argument #1 ($config) for key "file" must be of type object|string|int|float|bool|array|null|Closure, resource given');
 
         new Container([ // @phpstan-ignore-line
             'file' => tmpfile()
@@ -1937,11 +1939,31 @@ class ContainerTest extends TestCase
         $this->assertEquals('ArrayObject', $container->getEnv('X_FOO'));
     }
 
+    public function testGetEnvReturnsStringFromFactoryFunctionWithArrayType(): void
+    {
+        $container = new Container([
+            'X_FOO' => function (array $items) { return implode(',', $items); },
+            'items' => ['a', 'b', 'c']
+        ]);
+
+        $this->assertEquals('a,b,c', $container->getEnv('X_FOO'));
+    }
+
     public function testGetEnvReturnsStringFromFactoryFunctionWithIterableType(): void
     {
         $container = new Container([
             'X_FOO' => function (iterable $items) { $s = ''; foreach ($items as $v) { $s .= $v; } return $s; },
             'items' => new \ArrayIterator([1, 2, 3])
+        ]);
+
+        $this->assertEquals('123', $container->getEnv('X_FOO'));
+    }
+
+    public function testGetEnvReturnsStringFromFactoryFunctionWithIterableTypeAndArrayValue(): void
+    {
+        $container = new Container([
+            'X_FOO' => function (iterable $items) { $s = ''; foreach ($items as $v) { $s .= $v; } return $s; },
+            'items' => [1, 2, 3]
         ]);
 
         $this->assertEquals('123', $container->getEnv('X_FOO'));
@@ -1955,6 +1977,16 @@ class ContainerTest extends TestCase
         ]);
 
         $this->assertEquals('ALICE', $container->getEnv('X_FOO'));
+    }
+
+    public function testGetEnvReturnsStringFromFactoryFunctionWithCallableTypeAndArrayValue(): void
+    {
+        $container = new Container([
+            'X_FOO' => function (callable $fn) { return $fn(); },
+            'fn' => [new \DateTimeZone('UTC'), 'getName']
+        ]);
+
+        $this->assertEquals('UTC', $container->getEnv('X_FOO'));
     }
 
     /**
@@ -2325,7 +2357,7 @@ class ContainerTest extends TestCase
         ]);
 
         $this->expectException(\TypeError::class);
-        $this->expectExceptionMessage('Return value of {closure:' . __FILE__ . ':' . $line . '}() for $X_FOO must be of type object|string|int|float|bool|null, resource returned');
+        $this->expectExceptionMessage('Return value of {closure:' . __FILE__ . ':' . $line . '}() for $X_FOO must be of type object|string|int|float|bool|array|null, resource returned');
         $container->getEnv('X_FOO');
     }
 
@@ -2366,6 +2398,17 @@ class ContainerTest extends TestCase
 
         $this->expectException(\TypeError::class);
         $this->expectExceptionMessage('Return value of ' . Container::class . '::getEnv() for $X_FOO must be of type string|null, false returned');
+        $container->getEnv('X_FOO');
+    }
+
+    public function testGetEnvThrowsIfMapContainsInvalidArray(): void
+    {
+        $container = new Container([
+            'X_FOO' => ['a', 'b']
+        ]);
+
+        $this->expectException(\TypeError::class);
+        $this->expectExceptionMessage('Return value of ' . Container::class . '::getEnv() for $X_FOO must be of type string|null, array returned');
         $container->getEnv('X_FOO');
     }
 
@@ -2577,6 +2620,19 @@ class ContainerTest extends TestCase
 
         $this->expectException(\TypeError::class);
         $this->expectExceptionMessage('Argument #1 ($data) of {closure:' . __FILE__ . ':' . $line . '}() for $X_FOO must be of type object, string given');
+        $container->getEnv('X_FOO');
+    }
+
+    public function testGetEnvThrowsWhenFactoryFunctionExpectsArrayTypeButWrongTypeGiven(): void
+    {
+        $line = __LINE__ + 2;
+        $container = new Container([
+            'X_FOO' => function (array $items) { return implode(',', $items); },
+            'items' => 'not-an-array'
+        ]);
+
+        $this->expectException(\TypeError::class);
+        $this->expectExceptionMessage('Argument #1 ($items) of {closure:' . __FILE__ . ':' . $line . '}() for $X_FOO must be of type array, string given');
         $container->getEnv('X_FOO');
     }
 
