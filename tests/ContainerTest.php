@@ -1348,34 +1348,6 @@ class ContainerTest extends TestCase
         $callable($request);
     }
 
-    public function testCallableReturnsCallableThatThrowsWhenFactoryReferencesVariableMappedFromFactoryWithUnexpectedReturnType(): void
-    {
-        $request = new ServerRequest('GET', 'http://example.com/');
-
-        $controller = new class(new \stdClass()) {
-            public function __construct(\stdClass $data)
-            {
-                assert($data instanceof \stdClass);
-            }
-        };
-
-        $line = __LINE__ + 5;
-        $container = new Container([
-            \stdClass::class => function (string $http) {
-                return (object) ['name' => $http];
-            },
-            'http' => function () {
-                return tmpfile();
-            }
-        ]);
-
-        $callable = $container->callable(get_class($controller));
-
-        $this->expectException(\Error::class);
-        $this->expectExceptionMessage('Return value of {closure:' . __FILE__ . ':' . $line . '}() for $http must be of type object|string|int|float|bool|array|null, resource returned');
-        $callable($request);
-    }
-
     public function testCallableReturnsCallableThatThrowsWhenFactoryReferencesObjectVariableMappedFromFactoryWithReturnsUnexpectedInteger(): void
     {
         $request = new ServerRequest('GET', 'http://example.com/');
@@ -1658,16 +1630,6 @@ class ContainerTest extends TestCase
         $this->expectException(\Error::class);
         $this->expectExceptionMessage('Argument #1 ($name) of class@anonymous::__construct() requires container config with type string, none given');
         $callable($request);
-    }
-
-    public function testCtorThrowsWhenConfigContainsInvalidResource(): void
-    {
-        $this->expectException(\TypeError::class);
-        $this->expectExceptionMessage('Argument #1 ($config) for key "file" must be of type object|string|int|float|bool|array|null|Closure, resource given');
-
-        new Container([ // @phpstan-ignore-line
-            'file' => tmpfile()
-        ]);
     }
 
     public function testCtorThrowsWhenConfigForClassContainsInvalidObject(): void
@@ -2019,6 +1981,26 @@ class ContainerTest extends TestCase
         $this->assertEquals('false', $container->getEnv('X_FOO'));
     }
 
+    public function testGetEnvReturnsStringFromFactoryFunctionWithResourceValue(): void
+    {
+        $container = new Container([
+            'X_FOO' => function ($stream) { return get_resource_type($stream); },
+            'stream' => tmpfile()
+        ]);
+
+        $this->assertEquals('stream', $container->getEnv('X_FOO'));
+    }
+
+    public function testGetEnvReturnsStringFromFactoryFunctionWithResourceValueFromFactoryFunction(): void
+    {
+        $container = new Container([
+            'X_FOO' => function ($stream) { return get_resource_type($stream); },
+            'stream' => function () { return tmpfile(); }
+        ]);
+
+        $this->assertEquals('stream', $container->getEnv('X_FOO'));
+    }
+
     /**
      * @requires PHP 8
      */
@@ -2347,20 +2329,6 @@ class ContainerTest extends TestCase
         $container->getEnv('X_FOO');
     }
 
-    public function testGetEnvThrowsIfFactoryFunctionReturnsInvalidResource(): void
-    {
-        $line = __LINE__ + 2;
-        $container = new Container([
-            'X_FOO' => function () {
-                return tmpfile();
-            }
-        ]);
-
-        $this->expectException(\TypeError::class);
-        $this->expectExceptionMessage('Return value of {closure:' . __FILE__ . ':' . $line . '}() for $X_FOO must be of type object|string|int|float|bool|array|null, resource returned');
-        $container->getEnv('X_FOO');
-    }
-
     public function testGetEnvThrowsIfFactoryFunctionReturnsInvalidClosure(): void
     {
         $line = __LINE__ + 2;
@@ -2620,6 +2588,19 @@ class ContainerTest extends TestCase
 
         $this->expectException(\TypeError::class);
         $this->expectExceptionMessage('Argument #1 ($data) of {closure:' . __FILE__ . ':' . $line . '}() for $X_FOO must be of type object, string given');
+        $container->getEnv('X_FOO');
+    }
+
+    public function testGetEnvThrowsWhenFactoryFunctionExpectsStringTypeButResourceGiven(): void
+    {
+        $line = __LINE__ + 2;
+        $container = new Container([
+            'X_FOO' => function (string $data) { return $data; },
+            'data' => tmpfile()
+        ]);
+
+        $this->expectException(\TypeError::class);
+        $this->expectExceptionMessage('Argument #1 ($data) of {closure:' . __FILE__ . ':' . $line . '}() for $X_FOO must be of type string, resource given');
         $container->getEnv('X_FOO');
     }
 

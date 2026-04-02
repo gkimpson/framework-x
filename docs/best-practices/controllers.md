@@ -281,10 +281,10 @@ $app = new FrameworkX\App($container);
 ```
 
 Factory functions used in the container configuration map may also reference
-variables defined in the container configuration. You may use any object or
-scalar or `array` or `null` value for container variables or factory functions
-that return any such value. This can be particularly useful when combining
-autowiring with some manual configuration like this:
+variables defined in the container configuration. You may use a value of any
+type for container variables or factory functions that return any such value.
+This can be particularly useful when combining autowiring with some manual
+configuration like this:
 
 === "Scalar values"
 

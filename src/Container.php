@@ -14,14 +14,14 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 class Container
 {
-    /** @var array<string,object|callable():(object|scalar|array<mixed>|null)|scalar|array<mixed>|null>|ContainerInterface */
+    /** @var array<string,mixed>|ContainerInterface */
     private $container;
 
     /** @var bool */
     private $useProcessEnv;
 
     /**
-     * @param array<string,callable():(object|scalar|array<mixed>|null) | object | scalar | array<mixed> | null>|ContainerInterface $config
+     * @param array<string,mixed>|ContainerInterface $config
      * @throws \TypeError if given $config is invalid
      */
     public function __construct($config = [])
@@ -37,11 +37,6 @@ class Container
             if (!$value instanceof $name && !$value instanceof \Closure && !\is_string($value) && \strpos($name, '\\') !== false) {
                 throw new \TypeError(
                     'Argument #1 ($config) for key "' . $name . '" must be of type ' . $name . '|Closure|string, ' . $this->gettype($value) . ' given'
-                );
-            }
-            if (!\is_object($value) && !\is_scalar($value) && !\is_array($value) && $value !== null) {
-                throw new \TypeError(
-                    'Argument #1 ($config) for key "' . $name . '" must be of type object|string|int|float|bool|array|null|Closure, ' . $this->gettype($value) . ' given'
                 );
             }
         }
@@ -385,12 +380,12 @@ class Container
     }
 
     /**
-     * @return object|string|int|float|bool|array<mixed>|null
+     * @return mixed
      * @throws \TypeError if container factory returns an unexpected type
      * @throws \Error if $name can not be loaded
      * @throws \Throwable if container factory function throws unexpected exception
      */
-    private function loadVariable(string $name, int $depth = 64) /*: object|string|int|float|bool|array|null (PHP 8.0+) */
+    private function loadVariable(string $name, int $depth = 64) /*: mixed (PHP 8.0+) */
     {
         \assert($this->hasVariable($name));
         \assert(\is_array($this->container) || !$this->container->has($name));
@@ -409,11 +404,7 @@ class Container
                 $this->container[$name] = $factory;
             }
 
-            if (!\is_object($value) && !\is_scalar($value) && !\is_array($value) && $value !== null) {
-                throw new \TypeError(
-                    'Return value of ' . self::functionName($closure) . ' for $' . $name . ' must be of type object|string|int|float|bool|array|null, ' . $this->gettype($value) . ' returned'
-                );
-            } elseif ($value instanceof \Closure) {
+            if ($value instanceof \Closure) {
                 throw new \TypeError(
                     'Return value of ' . self::functionName($closure) . ' for $' . $name . ' must not be of type Closure'
                 );
@@ -433,12 +424,11 @@ class Container
             \assert($this->useProcessEnv && $value !== false);
         }
 
-        \assert(\is_object($value) || \is_scalar($value) || \is_array($value) || $value === null);
         return $value;
     }
 
     /**
-     * @param object|string|int|float|bool|array<mixed>|null $value
+     * @param mixed $value
      * @param \ReflectionType $type
      * @throws void
      */
