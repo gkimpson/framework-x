@@ -423,7 +423,12 @@ match "HTTP/.* 200"
 notmatch -i "\"Content-Type\""
 notmatch -i "\"Content-Length\""
 
+curl -v $base/headers -H Host:
+skipifnot "Server:" # skip PHP development server (serves Host-less HTTP/1.1)
+match "HTTP/.* 400"
+
 curl -v $base/headers -H User-Agent: -H Accept: -H Host: -10
+skipif "HTTP/.* 400" # skip nginx 1.29.7+ (default HTTP/1.1 to upstream requires Host)
 match "HTTP/.* 200"
 match "{}"
 
@@ -447,7 +452,7 @@ match "\"DNT\""
 notmatch "\"Dnt\""
 
 curl -v $base/headers -H 'V: a' -H 'V: b'
-skipif "Server: nginx" # skip nginx (last only) and PHP webserver (first only)
+skipif "Server: nginx" # skip nginx (last only) and PHP development server (first only)
 skipifnot "Server:"
 match "HTTP/.* 200"
 match "\"V\": \"a, b\""
@@ -467,7 +472,7 @@ match "HTTP/.* 400"
 
 curl -v --proxy $baseWithPort -p $base/debug
 skipif "CONNECT aborted" # skip PHP development server (rejects as "Malformed HTTP request")
-match "HTTP/.* 400"
+match "HTTP/.* 40[05]" # expect 400 or 405 (nginx 1.29.3+ rejects CONNECT with 405)
 
 # check HTTP redirects
 
