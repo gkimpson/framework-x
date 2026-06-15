@@ -14,14 +14,14 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 class Container
 {
-    /** @var array<string,object|callable():(object|scalar|null)|scalar|null>|ContainerInterface */
+    /** @var array<string,object|callable():(object|scalar|array<mixed>|null)|scalar|array<mixed>|null>|ContainerInterface */
     private $container;
 
     /** @var bool */
     private $useProcessEnv;
 
     /**
-     * @param array<string,callable():(object|scalar|null) | object | scalar | null>|ContainerInterface $config
+     * @param array<string,callable():(object|scalar|array<mixed>|null) | object | scalar | array<mixed> | null>|ContainerInterface $config
      * @throws \TypeError if given $config is invalid
      */
     public function __construct($config = [])
@@ -39,9 +39,9 @@ class Container
                     'Argument #1 ($config) for key "' . $name . '" must be of type ' . $name . '|Closure|string, ' . $this->gettype($value) . ' given'
                 );
             }
-            if (!\is_object($value) && !\is_scalar($value) && $value !== null) {
+            if (!\is_object($value) && !\is_scalar($value) && !\is_array($value) && $value !== null) {
                 throw new \TypeError(
-                    'Argument #1 ($config) for key "' . $name . '" must be of type object|string|int|float|bool|null|Closure, ' . $this->gettype($value) . ' given'
+                    'Argument #1 ($config) for key "' . $name . '" must be of type object|string|int|float|bool|array|null|Closure, ' . $this->gettype($value) . ' given'
                 );
             }
         }
@@ -385,12 +385,12 @@ class Container
     }
 
     /**
-     * @return object|string|int|float|bool|null
+     * @return object|string|int|float|bool|array<mixed>|null
      * @throws \TypeError if container factory returns an unexpected type
      * @throws \Error if $name can not be loaded
      * @throws \Throwable if container factory function throws unexpected exception
      */
-    private function loadVariable(string $name, int $depth = 64) /*: object|string|int|float|bool|null (PHP 8.0+) */
+    private function loadVariable(string $name, int $depth = 64) /*: object|string|int|float|bool|array|null (PHP 8.0+) */
     {
         \assert($this->hasVariable($name));
         \assert(\is_array($this->container) || !$this->container->has($name));
@@ -409,9 +409,9 @@ class Container
                 $this->container[$name] = $factory;
             }
 
-            if (!\is_object($value) && !\is_scalar($value) && $value !== null) {
+            if (!\is_object($value) && !\is_scalar($value) && !\is_array($value) && $value !== null) {
                 throw new \TypeError(
-                    'Return value of ' . self::functionName($closure) . ' for $' . $name . ' must be of type object|string|int|float|bool|null, ' . $this->gettype($value) . ' returned'
+                    'Return value of ' . self::functionName($closure) . ' for $' . $name . ' must be of type object|string|int|float|bool|array|null, ' . $this->gettype($value) . ' returned'
                 );
             } elseif ($value instanceof \Closure) {
                 throw new \TypeError(
@@ -433,12 +433,12 @@ class Container
             \assert($this->useProcessEnv && $value !== false);
         }
 
-        \assert(\is_object($value) || \is_scalar($value) || $value === null);
+        \assert(\is_object($value) || \is_scalar($value) || \is_array($value) || $value === null);
         return $value;
     }
 
     /**
-     * @param object|string|int|float|bool|null $value
+     * @param object|string|int|float|bool|array<mixed>|null $value
      * @param \ReflectionType $type
      * @throws void
      */
@@ -470,6 +470,7 @@ class Container
             (\is_int($value) && $type === 'int') ||
             (\is_float($value) && $type === 'float') ||
             (\is_bool($value) && $type === 'bool') ||
+            (\is_array($value) && $type === 'array') ||
             (\is_iterable($value) && $type === 'iterable') ||
             (\is_callable($value) && $type === 'callable') ||
             ($value === true && $type === 'true') || // PHP 8.2+ standalone type
